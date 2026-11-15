@@ -1,57 +1,59 @@
-# PresentMaker — FYP Team Handover & Quickstart Guide
+# PresentMaker — Team Handover & Collaboration Guide
 
-Welcome to the **PresentMaker** project repository! This guide provides everything an FYP team member needs to clone, configure, run, and develop the application independently on their own computer.
-
----
-
-## 1. Quick Technical Summary
-
-- **Frontend:** React 19 + TypeScript + Vite (Port `5173`)
-- **Backend Gateway:** Node.js + Express + TypeScript + MongoDB (Port `5000`)
-- **AI Microservice:** Python 3.10+ + FastAPI + Uvicorn (Port `8002`)
-- **Database:** MongoDB Atlas (Cloud) or Local MongoDB
-- **Primary AI:** Google Gemini (`gemini-2.5-flash`)
-- **Secondary AI Fallback:** Groq Cloud (`llama-3.3-70b-versatile`)
-- **Image Integration:** Unsplash API
+This document establishes the collaboration standards, Git branching model, pull-request workflow, environment policies, and responsibility boundaries for all team members contributing to **PresentMaker**.
 
 ---
 
-## 2. Setting Up in 7 Simple Steps
+## 1. Project Overview & Repository
 
-### Step 1: Install Git, Node.js & Python
-1. **Git:** Download and install from [git-scm.com](https://git-scm.com/).
-2. **Node.js:** Install Node.js LTS (v20+ or v24) from [nodejs.org](https://nodejs.org/).
-3. **Python:** Install Python 3.10, 3.11, or 3.12 from [python.org](https://www.python.org/). *Check "Add Python to PATH" during installation.*
-4. **VS Code:** Install Visual Studio Code from [code.visualstudio.com](https://code.visualstudio.com/).
+- **Project Name:** PresentMaker — AI-Powered Presentation Maker
+- **Repository URL:** `https://github.com/gul310/Presentation_Maker.git`
+- **Primary Branch:** `main`
+- **Project Owner:** `gul310`
+- **Team Collaborators:**
+  - Lybah Zahid — GitHub: `lybah-gif`
+  - Zubair Awan — GitHub: `zawan1`
 
-### Step 2: Clone the Project Repository
-Open PowerShell or your preferred terminal:
+---
+
+## 2. Team Account Roles & Access Permissions
+
+PresentMaker maintains a clear separation between **GitHub repository permissions** and **application runtime roles**:
+
+| Member | GitHub Username | GitHub Permission | Application Login | Application Role | `is_admin` | Notes |
+| :--- | :--- | :---: | :--- | :---: | :---: | :--- |
+| **Project Owner** | `gul310` | Owner / Admin | `admin@presentai.com` | `admin` | `true` | Sole Super Administrator. Controls production merges and releases. |
+| **Lybah Zahid** | `lybah-gif` | Collaborator (Write) | `laiba@example.com` | `student` | `false` | Standard user. Isolated to own presentations and generation jobs. |
+| **Zubair Awan** | `zawan1` | Collaborator (Write) | `zawan9624@gmail.com` | `student` | `false` | Standard user. Isolated to own presentations and generation jobs. |
+
+> [!IMPORTANT]
+> GitHub `Write` access allows pushing branches and opening Pull Requests on the repository. It **never** grants application-level administrative privileges (`is_admin: true`) in the database.
+
+---
+
+## 3. Clone & Onboarding Quickstart
+
+Each collaborator can get their local environment running in 5 steps:
+
+### Step 1: Clone Repository
 ```powershell
 git clone https://github.com/gul310/Presentation_Maker.git
 cd Presentation_Maker
 ```
-Open the folder in VS Code:
-```powershell
-code .
-```
 
-### Step 3: Install Frontend Dependencies
-In your terminal:
+### Step 2: Install Dependencies
 ```powershell
+# Frontend
 cd frontend
 npm install
 cd ..
-```
 
-### Step 4: Install Node Backend Dependencies
-```powershell
+# Backend Node Gateway
 cd backend-node
 npm install
 cd ..
-```
 
-### Step 5: Set Up Python AI Microservice
-```powershell
+# Python AI Microservice
 cd backend
 python -m venv venv
 .\venv\Scripts\Activate.ps1
@@ -59,58 +61,94 @@ pip install -r requirements.txt
 cd ..
 ```
 
-### Step 6: Create Your Local Environment Files
-Copy the example files:
+### Step 3: Set Up Private Environment Files
 ```powershell
 Copy-Item backend-node\.env.example backend-node\.env
 Copy-Item backend\.env.example backend\.env
 ```
+*(Configure your own private `MONGODB_URI`, `JWT_SECRET`, and `GEMINI_API_KEY` in the newly created `.env` files. See [docs/INSTALLATION_GUIDE.md](file:///c:/Users/admin/Downloads/PresentMaker/docs/INSTALLATION_GUIDE.md) for full details).*
 
-Open both `.env` files in VS Code:
-1. **In `backend-node/.env`:**
-   - Put your own MongoDB connection string under `MONGODB_URI`.
-   - Put a random 32-character secret under `JWT_SECRET`.
-   - (Optional) Put your free Unsplash API key.
-2. **In `backend/.env`:**
-   - Put your own Google Gemini API key from [aistudio.google.com](https://aistudio.google.com/) under `GEMINI_API_KEY`.
-   - Put your own Groq key from [console.groq.com](https://console.groq.com/keys) under `GROQ_API_KEY`.
-   - Match `JWT_SECRET_KEY` with the secret used in `backend-node/.env`.
-
-### Step 7: Run All 3 Services
-Open **three separate terminals** in VS Code:
-
-#### Terminal 1 — Frontend:
-```powershell
-cd frontend
-npm run dev
-```
-> App UI will open at: **http://localhost:5173**
-
-#### Terminal 2 — Node Gateway:
-```powershell
-cd backend-node
-npm run dev
-```
-> Gateway runs at: **http://localhost:5000**
-
-#### Terminal 3 — Python AI Service:
-```powershell
-cd backend
-.\venv\Scripts\Activate.ps1
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8002
-```
-> AI Swagger docs available at: **http://127.0.0.1:8002/docs**
+### Step 4: Run Services
+Launch each service in a separate terminal:
+- **Terminal 1 (Frontend):** `cd frontend; npm run dev` $\rightarrow$ `http://localhost:5173`
+- **Terminal 2 (Node Gateway):** `cd backend-node; npm run dev` $\rightarrow$ `http://localhost:5000`
+- **Terminal 3 (Python AI):** `cd backend; .\venv\Scripts\Activate.ps1; python -m uvicorn app.main:app --port 8002` $\rightarrow$ `http://127.0.0.1:8002`
 
 ---
 
-## 3. Stopping Services
-To stop any service, press `CTRL + C` in its respective terminal window.
+## 4. Git Branching & Contribution Workflow
+
+To maintain code quality and prevent regressions, all collaborators must adhere to the following workflow:
+
+### 4.1 Branching Rules
+- **Direct Pushes to `main` Are Prohibited:** Collaborators must never push directly to `origin/main`.
+- **Feature Branches:** Create a dedicated branch for every feature, fix, or documentation update:
+  - `feat/feature-name` (e.g., `feat/audio-playback-controls`)
+  - `fix/bug-description` (e.g., `fix/slide-padding-overflow`)
+  - `docs/doc-update` (e.g., `docs/update-api-reference`)
+
+### 4.2 Pull & Sync Workflow
+Before starting new work or submitting a branch:
+```powershell
+# Fetch latest main from remote
+git checkout main
+git pull origin main
+
+# Branch from the latest main
+git checkout -b feat/your-feature-name
+
+# Work on changes...
+git status
+```
+
+### 4.3 Commit Naming Conventions
+All commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+- `feat: <description>` — A new feature
+- `fix: <description>` — A bug fix
+- `docs: <description>` — Documentation only changes
+- `refactor: <description>` — Code change that neither fixes a bug nor adds a feature
+- `style: <description>` — Formatting, whitespace, semicolon changes
+- `chore: <description>` — Build process, auxiliary tools, dependency upgrades
+
+*Example:* `feat: add custom color picker to slide background editor`
+
+### 4.4 Submitting a Pull Request (PR)
+1. Push your branch to GitHub:
+   ```powershell
+   git push origin feat/your-feature-name
+   ```
+2. Navigate to `https://github.com/gul310/Presentation_Maker` and open a Pull Request targeting `main`.
+3. Provide a clear description of changes, screenshots (for UI changes), and local verification notes.
+4. Request review from the project owner (`gul310`).
+5. Merges into `main` require project owner review and approval.
 
 ---
 
-## 4. Key Rules for Team Members
-- **Single Super Admin Policy:** The only platform Super Administrator is `admin@presentai.com`. Collaborators and student accounts are assigned standard user permissions.
-- **NEVER commit `.env` files or API keys.** The root `.gitignore` protects them, but always check `git status` before committing.
-- **Never push directly to `main`.** Create a feature branch (`git checkout -b feature/your-feature`) and open a Pull Request.
-- **Each team member uses their own database.** Do not test against production or overwrite each other's data.
+## 5. Security & Isolation Rules
 
+1. **Never Commit Secrets:** `.env` files, API keys (Gemini, Groq, Unsplash), JWT secrets, and database connection strings with passwords must never be staged or committed. Verify with `git status` before committing.
+2. **Preserve User Data Isolation:** When writing database queries or endpoints, never omit the `user_id: req.user._id` filter on user-owned collections (`presentations`, `generationjobs`, etc.).
+3. **No Automatic Role Elevation:** Never introduce code or seed scripts that automatically grant `admin` roles or `is_admin: true` to normal users or email patterns.
+4. **Use Personal Database Instances:** Collaborators should use their own isolated MongoDB database or Atlas collection for local development to avoid corrupting shared test data.
+
+---
+
+## 6. What Must NOT Be Changed Without Project Owner Approval
+
+The following architectural components require explicit prior approval from `gul310` before modification:
+- **Authentication & RBAC Logic:** `backend-node/src/middleware/auth.middleware.ts`, `backend-node/src/routes/auth.routes.ts`, and role verification routines.
+- **Super Administrator Seed:** `backend-node/src/services/adminSeed.ts`.
+- **Database Schemas:** Core Mongoose schemas in `backend-node/src/models/` (`User.ts`, `Presentation.ts`, `GenerationJob.ts`).
+- **AI Microservice Architecture:** The primary-to-fallback cascade hierarchy (Gemini $\rightarrow$ Groq $\rightarrow$ DeepSeek $\rightarrow$ Synthesizer) in `backend/app/services/ai_circuit_breaker.py` and `backend/app/services/synthesizer.py`.
+- **Repository Visibility and Collaborator Settings:** Any changes to GitHub access levels or branch protection rules.
+
+---
+
+## 7. How to Report Bugs & Coordinate Changes
+
+- **GitHub Issues:** Open an issue on GitHub detailing:
+  - Clear summary of the problem.
+  - Steps to reproduce the issue.
+  - Expected vs. actual behavior.
+  - Screenshots or terminal error logs.
+- **Team Communication:** For immediate coordination or clarification on architectural decisions, contact project owner `gul310` directly before beginning major refactoring.

@@ -10,8 +10,8 @@ Each team member should follow these steps when working on features or bug fixes
 
 1. **Clone the Repository:**
    ```bash
-   git clone <repository-url>
-   cd PresentMaker
+   git clone https://github.com/gul310/Presentation_Maker.git
+   cd Presentation_Maker
    ```
 
 2. **Create a Dedicated Branch:**
