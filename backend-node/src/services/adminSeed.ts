@@ -5,13 +5,7 @@ import { Template } from "../models/Template.js";
 
 export async function ensureAdminAndSettings(): Promise<void> {
   try {
-    // 1. Ensure project owner has admin privileges
-    await User.updateOne(
-      { email: "zawan9624@gmail.com" },
-      { $set: { role: "admin", is_admin: true } }
-    );
-
-    // 2. Ensure dedicated Super Admin account exists
+    // 1. Ensure the ONLY dedicated Super Admin account exists and has admin privileges
     const adminEmail = "admin@presentai.com";
     const existingAdmin = await User.findOne({ email: adminEmail });
     if (!existingAdmin) {

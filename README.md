@@ -225,7 +225,7 @@ Copy-Item frontend\.env.example frontend\.env
 PresentMaker uses MongoDB with Mongoose ODM.
 1. Connect via `MONGODB_URI` in `backend-node/.env`.
 2. All schemas (`User`, `Presentation`, `GenerationJob`, `MarketplaceListing`, `AuditLog`, etc.) are created dynamically by Mongoose on first insert.
-3. An administrative account seed runs safely on startup if no admin profile exists.
+3. A single dedicated Super Administrator account seed (`admin@presentai.com`) runs safely on startup. No other account is automatically granted administrator privileges.
 4. Detailed database schema documentation is available in [docs/DATABASE_SETUP.md](file:///c:/Users/admin/Downloads/PresentMaker/docs/DATABASE_SETUP.md).
 
 ---
