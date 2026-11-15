@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /discover
+Allow: /marketplace
+Allow: /p/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /presentation/
+Disallow: /practice/
+Disallow: /api/
+
+Sitemap: https://presentmaker.com/sitemap.xml
+

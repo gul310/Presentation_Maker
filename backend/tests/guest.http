@@ -1,0 +1,19 @@
+### 1. Check Guest Usage Status (0 used)
+GET http://127.0.0.1:8000/api/guest/status
+X-Guest-Session-ID: test_device_session_101
+Accept: application/json
+
+### 2. Guest Generation Attempt #1 (ALLOW)
+POST http://127.0.0.1:8000/api/guest/attempt-generation
+X-Guest-Session-ID: test_device_session_101
+Content-Type: application/json
+
+### 3. Guest Generation Attempt #2 (ALLOW)
+POST http://127.0.0.1:8000/api/guest/attempt-generation
+X-Guest-Session-ID: test_device_session_101
+Content-Type: application/json
+
+### 4. Guest Generation Attempt #3 (BLOCK - 403 Forbidden GUEST_GENERATION_LIMIT_REACHED)
+POST http://127.0.0.1:8000/api/guest/attempt-generation
+X-Guest-Session-ID: test_device_session_101
+Content-Type: application/json

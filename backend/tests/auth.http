@@ -1,0 +1,70 @@
+### 1. Health Check
+GET http://127.0.0.1:8000/api/health
+Accept: application/json
+
+### 2. User Registration (Success)
+POST http://127.0.0.1:8000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Dr. Sarah Connor",
+  "email": "sarah.connor@university.edu",
+  "password": "SecurePassword123!",
+  "role": "researcher",
+  "country": "United States",
+  "interface_language": "English",
+  "presentation_language": "English"
+}
+
+### 3. Duplicate User Registration (Should Fail 400)
+POST http://127.0.0.1:8000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Dr. Sarah Connor",
+  "email": "sarah.connor@university.edu",
+  "password": "SecurePassword123!",
+  "role": "researcher",
+  "country": "United States",
+  "interface_language": "English",
+  "presentation_language": "English"
+}
+
+### 4. User Login (Success)
+# @name loginRequest
+POST http://127.0.0.1:8000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "sarah.connor@university.edu",
+  "password": "SecurePassword123!"
+}
+
+### 5. Invalid Login (Should Fail 401)
+POST http://127.0.0.1:8000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "sarah.connor@university.edu",
+  "password": "WrongPassword!"
+}
+
+### 6. Get Current User without Token (Should Fail 401)
+GET http://127.0.0.1:8000/api/auth/me
+Accept: application/json
+
+### 7. Get Current User with Bearer Token (Pass JWT token from login step above)
+GET http://127.0.0.1:8000/api/auth/me
+Authorization: Bearer {{loginRequest.response.body.access_token}}
+Accept: application/json
+
+### 8. Update Theme Settings in MySQL
+PUT http://127.0.0.1:8000/api/users/me/theme
+Authorization: Bearer {{loginRequest.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "app_theme_mode": "dark",
+  "app_color_theme": "purple",
+  "custom_primary_color": "#a855f7"
+}
