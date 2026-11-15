@@ -48,6 +48,34 @@ interface ParsedPromptInstructions {
   sections: string[];
 }
 
+export function isRawFilename(str: string): boolean {
+  if (!str) return false;
+  const s = str.trim();
+  if (/\.(docx?|pdf|pptx?|txt|md|rtf)$/i.test(s)) return true;
+  if (/^[a-zA-Z0-9]+(?:[-_][a-zA-Z0-9]+)+$/i.test(s) && (s.includes("_") || /draft|final|source|presentation|doc|mvp|capstone/i.test(s))) {
+    return true;
+  }
+  return false;
+}
+
+export function cleanFilenameToTitle(filename: string): string {
+  if (!filename) return "Executive Presentation";
+  let name = filename.trim().replace(/\.[^/.]+$/, "");
+  name = name.replace(/[_-]+/g, " ");
+  name = name.replace(/\b(?:presentation|source|draft|final|v\d+|doc|notes|deck|slides?|mvp|capstone)\b/gi, " ");
+  name = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  name = name.replace(/\s+/g, " ").trim();
+  if (!name || name.length < 3) return "Executive Presentation";
+  const minorWords = new Set(["a", "an", "the", "and", "but", "or", "for", "nor", "on", "at", "to", "from", "by", "with", "in", "of"]);
+  return name.split(" ").map((w, idx) => {
+    const lw = w.toLowerCase();
+    if (lw === "ai") return "AI";
+    if (lw === "ui" || lw === "ux") return lw.toUpperCase();
+    if (idx > 0 && minorWords.has(lw)) return lw;
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  }).join(" ");
+}
+
 export function parsePromptInstructions(text: string): ParsedPromptInstructions {
   let raw = (text || "").trim();
   let slideCount: number | undefined;
@@ -75,54 +103,76 @@ export function parsePromptInstructions(text: string): ParsedPromptInstructions 
       }
     }
   }
-  let cleaned = raw.replace(
-    /^(?:please\s+)?(?:create|make|prepare|generate|design|build|write|give\s+me)\s+(?:a\s+|an\s+)?(?:\d+\s*[-]?\s*(?:slides?|pages?)?\s+)?(?:professional\s+|executive\s+|informative\s+)?(?:presentation|deck|slides?|pitch|overview)?\s*(?:on|about|explaining|discussing|covering|regarding)\s+/i,
+
+  // 1. Strip conversational and procedural prompt boilerplate
+  let cleaned = raw;
+  cleaned = cleaned.replace(/^(?:please|can you|could you|i want you to|i would like to|kindly)\s+/i, "");
+  cleaned = cleaned.replace(
+    /^(?:create|make|prepare|generate|design|build|write|give\s+me|produce|develop|draft|present|explain|discuss|analyze|teach\s+me\s+about|talk\s+about|provide\s+(?:an?\s+)?(?:overview\s+of)?)\s+(?:a\s+|an\s+)?(?:\d+\s*[-]?\s*(?:slides?|pages?)?\s+)?(?:professional\s+|executive\s+|informative\s+|modern\s+|clean\s+|simple\s+)?(?:presentation|deck|slides?|pitch|overview)?(?:\s+(?:on|about|explaining|discussing|covering|regarding|for|with\s+regards?\s+to))?\s*/i,
     ""
   );
-  const secCleanMatch = cleaned.match(/[,;]?\s*(?:explain|covering|highlighting|including|focus\s+on|with)\s+(?:its\s+)?.*?(?:\.|$)/i);
+  cleaned = cleaned.replace(/^(?:presentation|slides?|deck|overview)\s+(?:on|about|covering|regarding)\s+/i, "");
+
+  // Clean trailing image requests
+  cleaned = cleaned.replace(/[,.]?\s*(?:with|including)\s+(?:relevant\s+|high\s*quality\s+|stock\s+)?(?:images|photos|pictures|visuals|diagrams).*$/i, "");
+
+  // Clean sections clause from subject only if explicitly followed by section breakdown
+  const secCleanMatch = cleaned.match(/[,;]?\s*(?:explain|covering|highlighting|including|focus\s+on)\s+(?:its\s+)?.*?(?:\.|$)/i);
   if (secCleanMatch && secCleanMatch.index !== undefined && secCleanMatch.index > 0) {
     cleaned = cleaned.substring(0, secCleanMatch.index).trim();
   }
   if (audience) {
     cleaned = cleaned.replace(new RegExp(`\\s+for\\s+${audience}`, "i"), "").trim();
   }
-  const commaIdx = cleaned.indexOf(",");
-  if (commaIdx > 3) {
-    cleaned = cleaned.substring(0, commaIdx).trim();
-  }
+  // DO NOT arbitrarily cut off commas (e.g. 'Media: Architecture, Applications & Future Potential')
   cleaned = cleaned.replace(/[.,;:]+$/, "").trim();
 
+  // If prompt was literally 'write a presentation' with no topic, fallback cleanly
+  if (!cleaned || cleaned.length < 2) {
+    cleaned = "Executive Strategy & Project Overview";
+  }
+
   // Normalize casing for cleanSubject
-  const minorWords = new Set(["in", "on", "of", "and", "the", "for", "with", "at", "to", "by"]);
+  const minorWords = new Set(["in", "on", "of", "and", "the", "for", "with", "at", "to", "by", "&"]);
   const words = cleaned.split(/\s+/);
   const subjectWords = words.map((w, idx) => {
     const lw = w.toLowerCase();
-    if (idx > 0 && minorWords.has(lw)) return lw;
     if (lw === "ai") return "AI";
+    if (lw === "ui" || lw === "ux") return lw.toUpperCase();
+    if (idx > 0 && minorWords.has(lw)) return lw;
     return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
   });
   const cleanSubject = subjectWords.join(" ") || "Strategic Presentation";
 
   let professionalTitle = cleanSubject;
-  if (sections.length > 0) {
+  // If cleanSubject already has an explicit subtitle (e.g. 'Media: Architecture, Applications & Future Potential'), preserve it!
+  const hasExistingSubtitle = cleanSubject.includes(":") || cleanSubject.includes(" - ");
+
+  if (hasExistingSubtitle) {
+    professionalTitle = cleanSubject;
+  } else if (sections.length > 0) {
     let secPreview = sections.slice(0, 2).join(", ");
     if (sections.length > 2) {
       secPreview += ` & ${sections[sections.length - 1]}`;
     }
     professionalTitle = `${cleanSubject}: ${secPreview}`;
   } else {
-    if (/fundamental/i.test(cleanSubject) || /introduction/i.test(cleanSubject)) {
-      professionalTitle = `${cleanSubject}: Principles, Architecture & Strategic Impact`;
-    } else if (/ai\b|intelligence|learning/i.test(cleanSubject)) {
-      professionalTitle = `${cleanSubject}: Innovations, Applications & Future Horizon`;
-    } else if (/renewable|energy/i.test(cleanSubject)) {
-      professionalTitle = `${cleanSubject}: Sustainable Technologies, Transition & Future Horizon`;
-    } else if (/cloud/i.test(cleanSubject)) {
-      professionalTitle = `${cleanSubject}: Architecture, Applications & Future Potential`;
-    } else if (/semantic/i.test(cleanSubject)) {
-      professionalTitle = `${cleanSubject}: Architecture, Applications & Future Potential`;
+    // Only append contextual subtitle if the subject is short (<= 3 words) and lacks colon
+    const wordCount = cleanSubject.split(/\s+/).length;
+    if (wordCount <= 3) {
+      if (/fundamental/i.test(cleanSubject) || /introduction/i.test(cleanSubject)) {
+        professionalTitle = `${cleanSubject}: Principles, Architecture & Strategic Impact`;
+      } else if (/\b(ai|intelligence|machine learning|deep learning)\b/i.test(cleanSubject)) {
+        professionalTitle = `${cleanSubject}: Innovations, Applications & Future Horizon`;
+      } else if (/renewable|energy|solar|wind/i.test(cleanSubject)) {
+        professionalTitle = `${cleanSubject}: Sustainable Technologies, Transition & Future Horizon`;
+      } else if (/cloud|devops|cyber|security|blockchain/i.test(cleanSubject)) {
+        professionalTitle = `${cleanSubject}: Architecture, Security & Enterprise Adoption`;
+      } else {
+        professionalTitle = `${cleanSubject}: Strategic Overview & Key Insights`;
+      }
     } else {
-      professionalTitle = `${cleanSubject}: Architecture, Applications & Future Potential`;
+      professionalTitle = cleanSubject;
     }
   }
 
@@ -138,22 +188,46 @@ async function executeGenerationJob(jobId: string): Promise<void> {
     // 1. Progress: Generating slide content
     job.status = "processing";
     job.progress_stage = "generating";
-    job.progress_message = "Generating slide content...";
+    job.progress_message = job.source_type === "document"
+      ? (job.custom_prompt ? "Analyzing document with your custom focus instructions..." : "Understanding document and extracting presentation outline...")
+      : "Generating slide content...";
     await job.save();
 
-    const parsed = parsePromptInstructions(job.prompt);
-    const cleanSubject = parsed.cleanSubject;
-    const professionalTitle = parsed.professionalTitle;
-    const title_hint = job.source_name || cleanSubject;
-    const effectiveSlideCount = parsed.slideCount || Number(job.slide_count) || 6;
-    const effectiveAudience = parsed.audience || job.audience || "General";
+    let cleanSubject: string;
+    let professionalTitle: string;
+    let effectiveSlideCount: number;
+    let effectiveAudience: string;
+
+    if (job.source_type === "document") {
+      // For uploaded documents, prompt contains extracted text; do NOT treat entire text as a prompt string
+      effectiveSlideCount = Number(job.slide_count) || 6;
+      effectiveAudience = job.audience || "General";
+      let docTitle = job.source_name ? job.source_name.trim() : "";
+      if (isRawFilename(docTitle) || docTitle.includes("_") || !docTitle) {
+        docTitle = cleanFilenameToTitle(docTitle);
+      }
+      cleanSubject = docTitle || "Executive Document Presentation";
+      professionalTitle = docTitle || "Strategic Document Presentation";
+    } else {
+      const parsed = parsePromptInstructions(job.prompt);
+      cleanSubject = parsed.cleanSubject;
+      professionalTitle = parsed.professionalTitle;
+      effectiveSlideCount = parsed.slideCount || Number(job.slide_count) || 6;
+      effectiveAudience = parsed.audience || job.audience || "General";
+    }
+
+    let title_hint = job.source_name || cleanSubject;
+    if (isRawFilename(title_hint) || title_hint.includes("_")) {
+      title_hint = cleanFilenameToTitle(title_hint);
+    }
 
     const aiResult = await fastApiService.generatePresentation({
       source_type: job.source_type,
       source_content: job.prompt,
       prompt: job.prompt,
+      custom_prompt: job.custom_prompt || undefined,
       title_hint,
-      source_name: job.source_name || cleanSubject,
+      source_name: title_hint,
       slide_count: effectiveSlideCount,
       language: job.language,
       audience: effectiveAudience,
@@ -166,27 +240,67 @@ async function executeGenerationJob(jobId: string): Promise<void> {
     job.progress_message = "Creating presentation layouts...";
     await job.save();
 
-    const slides: ISlide[] = (aiResult.slides || []).map((s: any, idx: number) => ({
-      slide_number: s.slide_number || idx + 1,
-      title: s.title || `Slide ${idx + 1}`,
-      content: {
-        subtitle: s.subtitle || undefined,
-        bullet_points: s.bullet_points || [],
-        body: s.body || undefined,
-        visual_type: s.visual_type || s.layout_type || "standard",
-        steps: s.steps || undefined,
-        timeline_items: s.timeline_items || undefined,
-        comparison_columns: s.comparison_columns || undefined,
-        stats: s.stats || undefined,
-        cards: s.cards || undefined,
-        table_data: s.table_data || undefined,
-        hierarchy_levels: s.hierarchy_levels || undefined,
-        ...(s.content || {})
-      },
-      layout_type: s.layout_type || s.visual_type || "standard",
-      speaker_notes: s.speaker_notes || "",
-      source_reference: s.source_reference || null
-    }));
+    const slides: ISlide[] = (aiResult.slides || []).map((s: any, idx: number) => {
+      let bullets: string[] = Array.isArray(s.bullet_points) ? s.bullet_points : [];
+      // Defensive: normalize bullets if oversized
+      bullets = bullets.flatMap((b: string) => {
+        const cleaned = String(b || "").trim().replace(/^[-*•\d.]+\s*/, "");
+        if (!cleaned) return [];
+        // If bullet is an oversized paragraph, split into sentences
+        if (cleaned.length > 220) {
+          const sents = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
+          if (sents.length > 1) {
+            return sents.slice(0, 2).map(sent => sent.length > 180 ? sent.substring(0, 177) + "..." : sent);
+          }
+          return [cleaned.substring(0, 217) + "..."];
+        }
+        return [cleaned];
+      });
+
+      // Defensive: Slide 1 Anti-Dumping Safeguard
+      if (idx === 0) {
+        const totalWords = bullets.join(" ").split(/\s+/).length;
+        if (totalWords > 100 || (bullets.length > 0 && bullets[0].length > 180)) {
+          bullets = [
+            `Comprehensive executive briefing exploring foundational concepts and scope.`,
+            `Detailed evaluation of architectural framework, methodology, and implementation.`,
+            `Strategic analysis of key findings, performance benchmarks, and future horizon.`
+          ];
+        }
+      }
+
+      // Defensive: speaker notes limit
+      let speakerNotes = String(s.speaker_notes || "").trim();
+      if (speakerNotes.length > 550) {
+        const sents = speakerNotes.split(/(?<=[.!?])\s+/);
+        speakerNotes = sents.slice(0, 3).join(" ");
+        if (speakerNotes.length > 500) {
+          speakerNotes = speakerNotes.substring(0, 497) + "...";
+        }
+      }
+
+      return {
+        slide_number: s.slide_number || idx + 1,
+        title: s.title || `Slide ${idx + 1}`,
+        content: {
+          subtitle: s.subtitle ? String(s.subtitle).substring(0, 150) : undefined,
+          bullet_points: bullets.slice(0, 5),
+          body: s.body ? String(s.body).substring(0, 300) : undefined,
+          visual_type: s.visual_type || s.layout_type || "standard",
+          steps: s.steps || undefined,
+          timeline_items: s.timeline_items || undefined,
+          comparison_columns: s.comparison_columns || undefined,
+          stats: s.stats || undefined,
+          cards: s.cards || undefined,
+          table_data: s.table_data || undefined,
+          hierarchy_levels: s.hierarchy_levels || undefined,
+          ...(s.content || {})
+        },
+        layout_type: s.layout_type || s.visual_type || "standard",
+        speaker_notes: speakerNotes,
+        source_reference: s.source_reference || null
+      };
+    });
 
     // 2.5. Intelligent AI Image Selection & Automatic Unsplash Image Insertion
     if (unsplashService.isConfigured()) {
@@ -207,16 +321,20 @@ async function executeGenerationJob(jobId: string): Promise<void> {
     await job.save();
 
     let presentationTitle = aiResult.title || professionalTitle || cleanSubject || "Generated Presentation";
+    if (isRawFilename(presentationTitle) || presentationTitle.includes("_")) {
+      presentationTitle = cleanFilenameToTitle(presentationTitle);
+    }
     if (/^(?:please\s+)?(?:create|make|prepare|generate|design|build|write|give\s+me)\s+/i.test(presentationTitle)) {
       presentationTitle = professionalTitle || cleanSubject;
     }
+    presentationTitle = presentationTitle.replace(/[_-]+/g, " ").replace(/\.[^/.]+$/, "").trim();
 
     const presentation = new Presentation({
       user_id: job.user_id || null,
       guest_session_id: job.user_id ? null : (job.guest_session_id || null),
       title: presentationTitle,
       source_type: job.source_type,
-      source_name: job.source_type === "document" ? (job.source_name || cleanSubject) : null,
+      source_name: job.source_type === "document" ? (cleanFilenameToTitle(job.source_name || cleanSubject)) : null,
       language: aiResult.language || job.language,
       preferred_language: aiResult.language || job.language,
       audience: effectiveAudience,
@@ -279,6 +397,7 @@ router.post("/generate", async (req: AuthenticatedRequest, res: Response): Promi
       source_type = "prompt",
       source_content: raw_source_content,
       prompt,
+      custom_prompt,
       title_hint: raw_title_hint,
       source_name,
       slide_count = 6,
@@ -289,10 +408,28 @@ router.post("/generate", async (req: AuthenticatedRequest, res: Response): Promi
     } = req.body;
 
     const source_content = (raw_source_content || prompt || "").trim();
-    const parsed = parsePromptInstructions(source_content);
-    const effectiveSlideCount = parsed.slideCount || Number(slide_count) || 6;
-    const effectiveAudience = parsed.audience || audience || "General";
-    const title_hint = raw_title_hint || source_name || parsed.cleanSubject;
+    // In document mode, custom_prompt is the user's specific guidance/focus
+    const effectiveCustomPrompt = (custom_prompt || "").trim() || (source_type === "document" && prompt && prompt !== raw_source_content ? prompt.trim() : null);
+    let effectiveSlideCount: number;
+    let effectiveAudience: string;
+    let title_hint: string;
+
+    if (source_type === "document") {
+      effectiveSlideCount = Number(slide_count) || 6;
+      effectiveAudience = audience || "General";
+      const candidateTitle = raw_title_hint || source_name || "";
+      title_hint = isRawFilename(candidateTitle) || candidateTitle.includes("_")
+        ? cleanFilenameToTitle(candidateTitle)
+        : (candidateTitle || "Executive Presentation");
+    } else {
+      const parsed = parsePromptInstructions(source_content);
+      effectiveSlideCount = parsed.slideCount || Number(slide_count) || 6;
+      effectiveAudience = parsed.audience || audience || "General";
+      const candidateTitle = raw_title_hint || (source_name && !isRawFilename(source_name) ? source_name : parsed.cleanSubject);
+      title_hint = isRawFilename(candidateTitle) || candidateTitle.includes("_")
+        ? cleanFilenameToTitle(candidateTitle)
+        : candidateTitle;
+    }
 
     if (!source_content) {
       res.status(400).json({ detail: "Please enter a presentation topic or upload a document." });
@@ -351,8 +488,9 @@ router.post("/generate", async (req: AuthenticatedRequest, res: Response): Promi
       user_id: req.auth?.userId ? new Types.ObjectId(req.auth.userId) : null,
       guest_session_id: req.auth?.userId ? null : (req.auth?.guestSessionId || null),
       prompt: source_content,
+      custom_prompt: effectiveCustomPrompt,
       source_type,
-      source_name: source_name || parsed.cleanSubject,
+      source_name: (source_name && (isRawFilename(source_name) || source_name.includes("_")) ? cleanFilenameToTitle(source_name) : source_name) || title_hint,
       slide_count: effectiveSlideCount,
       language,
       audience: effectiveAudience,
@@ -360,7 +498,7 @@ router.post("/generate", async (req: AuthenticatedRequest, res: Response): Promi
       tone,
       status: "pending",
       progress_stage: "preparing",
-      progress_message: "Preparing your presentation..."
+      progress_message: source_type === "document" ? "Understanding document and planning slides..." : "Preparing your presentation..."
     });
 
     await job.save();

@@ -20,25 +20,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Restore authenticated session from backend on page refresh
   useEffect(() => {
+    let isMounted = true;
     const initAuth = async () => {
       const token = getAuthToken();
       if (!token) {
-        setLoading(false);
+        if (isMounted) setLoading(false);
         return;
       }
       try {
         const userData = await apiFetch<User>('/auth/me');
-        setUser(userData);
+        if (isMounted) {
+          if (userData && (userData.id || (userData as any)._id)) {
+            setUser(userData);
+          } else {
+            purgeSession();
+            setUser(null);
+          }
+        }
       } catch (err) {
         console.warn('Session expired or invalid token:', err);
-        setAuthToken(null);
-        setUser(null);
+        purgeSession();
+        if (isMounted) setUser(null);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     initAuth();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {

@@ -345,8 +345,17 @@ export class UnsplashService {
       .split(/\s+/)
       .filter(w => w.length > 2 && !["the", "and", "for", "with", "overview", "introduction", "role", "understanding", "modern", "future"].includes(w));
 
+    // Clean and normalize deck topic (strip filename artifacts, underscores, presentation boilerplate)
+    let normalizedDeckTopic = (deckTopic || "")
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\b(?:presentation|source|draft|final|v\d+|doc|notes|deck|slides?|mvp|capstone)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!normalizedDeckTopic) normalizedDeckTopic = "technology innovation";
+
     // Expand common abbreviations
-    const expandedDeckTopic = deckTopic
+    const expandedDeckTopic = normalizedDeckTopic
       .replace(/\bAI\b/gi, "artificial intelligence")
       .replace(/\bML\b/gi, "machine learning")
       .replace(/\bIoT\b/gi, "internet of things")
@@ -362,8 +371,8 @@ export class UnsplashService {
         };
       }
       return {
-        primaryQuery: `${expandedDeckTopic} presentation visual`,
-        fallbackQuery: `${expandedDeckTopic} concept`
+        primaryQuery: `${expandedDeckTopic} technology professional`,
+        fallbackQuery: `${expandedDeckTopic} overview`
       };
     }
 

@@ -26,6 +26,7 @@ class DocumentContentResponse(BaseModel):
     character_count: int
     word_count: int
     page_or_slide_count: int
+    detected_title: Optional[str] = None
     extracted_text_preview: str
     sections: List[DocumentSection]
 

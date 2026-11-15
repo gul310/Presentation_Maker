@@ -188,6 +188,7 @@ export interface DocumentContentResponse {
   character_count: number;
   word_count: number;
   page_or_slide_count: number;
+  detected_title?: string;
   extracted_text_preview: string;
   sections: DocumentSection[];
 }
@@ -207,6 +208,7 @@ export interface PresentationCreateInput {
 export interface PresentationGenerateInput {
   source_type: SourceType;
   prompt?: string;
+  custom_prompt?: string;
   source_content?: string;
   source_name?: string;
   title_hint?: string;

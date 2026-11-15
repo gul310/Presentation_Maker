@@ -175,7 +175,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
             </button>
 
             {/* Super Admin Control Link */}
-            {(user.role === "admin" || (user as any).is_admin) && (
+            {(String(user.role || "").toLowerCase().trim() === "admin" || Boolean((user as any).is_admin)) && (
               <button
                 onClick={() => onNavigate("/admin")}
                 title="Super Admin Panel"

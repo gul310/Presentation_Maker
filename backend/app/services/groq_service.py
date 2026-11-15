@@ -83,6 +83,7 @@ def get_groq_candidate_models() -> List[str]:
 def generate_presentation_deck_groq(
     source_type: str,
     source_content: str,
+    custom_prompt: Optional[str] = None,
     title_hint: Optional[str] = None,
     slide_count: int = 6,
     language: str = "English",
@@ -120,7 +121,7 @@ def generate_presentation_deck_groq(
         f"5. TARGET AUDIENCE: Tailor depth for a {audience} audience.\n"
         f"6. TONE: Maintain a consistent {tone} tone.\n"
         f"7. SPEAKER NOTES: Provide comprehensive spoken speaker notes for EVERY slide.\n"
-        "8. PRESENTATION TITLE: Professional Title Case. Never use prompt instructions (no 'Create a presentation...').\n"
+        "8. PRESENTATION TITLE: Professional Title Case. Never use prompt instructions (no 'Create a presentation...'). Never use raw filenames or strings with underscores or file extensions (e.g. NEVER output 'Presentmaker_Mvp_Capstone_Presentation_Source'). Always produce a clean, human-readable title like 'PresentMaker: AI-Powered Presentation Maker'.\n"
         "9. SLIDE HEADINGS: Distinct, unique headings for every slide. Slide 1 must be Topic Introduction and NOT repeat the main presentation title.\n"
         f"10. EXACT SCHEMA: Respond strictly with a single JSON object matching this structure:\n"
         "{\n"
@@ -150,20 +151,71 @@ def generate_presentation_deck_groq(
 
     if source_type == "document":
         system_instruction += (
-            "\n\nDOCUMENT GROUNDING CONSTRAINT:\n"
-            "Rely strictly on the provided document content as your primary source. "
-            "Preserve key facts, metrics, and logical section breakdowns."
+            "\n\nCRITICAL INTELLIGENT DOCUMENT-TO-PRESENTATION REQUIREMENTS (STRICT ENFORCEMENT):\n"
+            "The input is a source document (DOCX, PDF, or PPTX). Your role is an ELITE PRESENTATION DESIGNER, NOT a text copyist.\n\n"
+            "1. STAGE 3 SLIDE OUTLINE PLANNING & TOPIC MAPPING:\n"
+            "   - Slide 1: MUST be the TITLE SLIDE ('layout_type': 'title').\n"
+            "     * 'title': Executive presentation title derived from the document topic or title hint.\n"
+            "     * 'subtitle': 1 clear, professional sentence summarizing the presentation's scope and objectives.\n"
+            "     * 'bullet_points': Exactly 2-3 brief agenda/scope highlights (max 15 words each).\n"
+            "     * ABSOLUTE PROHIBITION ON SLIDE 1: NEVER place the Executive Summary, full paragraphs, literature review, or document body on Slide 1!\n"
+            "   - Slide 2: Executive Overview / Problem Statement ('layout_type': 'cards_grid' or 'standard').\n"
+            "     * Synthesize the document's core problem and purpose into 3-4 concise, high-impact bullet points.\n"
+            "   - Slides 3 to (N-1): Dedicated topic slides covering document sections in logical sequence (e.g. Architecture, Methodology, Features, Data & Results, Implementation).\n"
+            "     * EACH SLIDE MUST FOCUS ON ONE DISTINCT TOPIC OR SECTION.\n"
+            "     * Intelligently select visual layouts (process_flow for pipelines, stats_grid for data, cards_grid for core pillars, comparison for trade-offs).\n"
+            "   - Slide N: Conclusion & Strategic Horizon ('layout_type': 'conclusion').\n"
+            "     * Key takeaways, measurable impact, and future roadmap.\n\n"
+            "2. STRICT CONCISE BULLET POINTS (ANTI-DUMPING SAFEGUARD):\n"
+            "   - 'bullet_points': 3 to 5 concise points per slide. Each bullet point MUST be a punchy presentation bullet (strictly 8 to 22 words maximum).\n"
+            "   - ABSOLUTE PROHIBITION: NEVER paste raw paragraphs, multi-sentence text blocks, or concatenated headings/paragraphs into bullet points!\n\n"
+            "3. CONVERSATIONAL SPEAKER NOTES (NEVER RAW TEXT):\n"
+            "   - 'speaker_notes': 2 to 4 spoken sentences (45 to 80 words) in a natural presenter voice explaining the slide context and key takeaways.\n"
+            "   - ABSOLUTE PROHIBITION: NEVER copy or dump raw document paragraphs into speaker_notes.\n\n"
+            "4. UNIQUE PROFESSIONAL HEADINGS:\n"
+            "   - Every slide heading must be distinct, professional, and directly describe that slide's specific content (under 60 characters). Do NOT repeat the deck title on slide 1 or subsequent slides."
         )
+        if custom_prompt and custom_prompt.strip():
+            system_instruction += (
+                f"\n\nUSER CUSTOM INSTRUCTIONS & FOCUS DIRECTIVE:\n"
+                f"The user has provided specific guidance for generating this presentation from the document:\n"
+                f"\"{custom_prompt.strip()}\"\n"
+                f"- STRICTLY PRIORITIZE these custom instructions when choosing which sections to cover, the depth of explanation, and the presentation's angle.\n"
+                f"- Still ensure all facts, figures, and claims remain grounded in the source document."
+            )
 
-    user_prompt = (
-        f"Generate a {slide_count}-slide presentation deck in {language} for:\n"
-        f"Source Type: {source_type}\n"
-        f"Topic Hint: {title_hint or 'Auto-generate from content'}\n"
-        f"Audience: {audience}\n"
-        f"Presentation Type: {presentation_type}\n"
-        f"Tone: {tone}\n\n"
-        f"CONTENT:\n{source_content}"
-    )
+    if source_type == "document":
+        user_prompt = (
+            f"You are transforming the provided source document into an executive {slide_count}-slide presentation deck in {language}.\n"
+            f"CRITICAL DIRECTIVE: Do NOT copy document text verbatim. Synthesize and extract key points.\n"
+            f"Document Title Hint: {title_hint or 'Auto-generate from content'} (DO NOT copy raw filenames or underscores into presentation title)\n"
+            f"Requested Slide Count: Exactly {slide_count} slides\n"
+            f"Target Audience: {audience}\n"
+            f"Presentation Type: {presentation_type}\n"
+            f"Tone: {tone}\n"
+        )
+        if custom_prompt and custom_prompt.strip():
+            user_prompt += f"\nCRITICAL CUSTOM USER INSTRUCTIONS (PRIORITIZE THESE):\n{custom_prompt.strip()}\n"
+        user_prompt += (
+            f"\nSLIDE PLANNING REQUIREMENT:\n"
+            f"- Slide 1: MUST be the Title Slide ('layout_type': 'title') with title, subtitle, and 2-3 brief agenda items (NOT the executive summary).\n"
+            f"- Slide 2: Executive Summary / Problem Context distilled into 3-4 concise points.\n"
+            f"- Slides 3 to {slide_count - 1}: Dedicated substantive topic slides covering each key section of the document in logical sequence with varied visual layouts.\n"
+            f"- Slide {slide_count}: Conclusion / Future Outlook / Key Takeaways ('layout_type': 'conclusion').\n\n"
+            f"SOURCE DOCUMENT CONTENT:\n{source_content}\n"
+        )
+    else:
+        user_prompt = (
+            f"Generate a {slide_count}-slide presentation deck in {language} for:\n"
+            f"Source Type: {source_type}\n"
+            f"Topic Hint: {title_hint or 'Auto-generate from content'}\n"
+            f"Audience: {audience}\n"
+            f"Presentation Type: {presentation_type}\n"
+            f"Tone: {tone}\n"
+        )
+        if custom_prompt and custom_prompt.strip():
+            user_prompt += f"\nUSER CUSTOM INSTRUCTIONS / FOCUS:\n{custom_prompt.strip()}\n"
+        user_prompt += f"\nCONTENT:\n{source_content}"
 
     last_exc = None
     for model_name in candidate_models:
@@ -188,29 +240,17 @@ def generate_presentation_deck_groq(
             if not parsed_result.slides:
                 continue
 
-            # Title and heading sanitization
-            from app.services.synthesizer import parse_prompt_instructions
-            parsed_info = parse_prompt_instructions(source_content or title_hint or "")
-            clean_sub = parsed_info["clean_subject"]
-            prof_title = parsed_info["professional_title"]
-
-            if not parsed_result.title or re.match(r'^(?:please\s+)?(?:create|make|prepare|generate|design|build|write)\s+', parsed_result.title, re.IGNORECASE):
-                parsed_result.title = prof_title
-
-            seen_headings = set()
-            for idx, slide in enumerate(parsed_result.slides):
-                if idx == 0 and (slide.title.strip().lower() == parsed_result.title.strip().lower() or re.match(r'^(?:please\s+)?(?:create|make|prepare|generate)\s+', slide.title, re.IGNORECASE)):
-                    slide.title = f"Introduction to {clean_sub}"
-                elif re.match(r'^(?:please\s+)?(?:create|make|prepare|generate)\s+', slide.title, re.IGNORECASE):
-                    slide.title = f"{clean_sub} - Key Focus Area {idx + 1}"
-
-                if slide.title in seen_headings:
-                    slide.title = f"{slide.title} ({idx + 1})"
-                seen_headings.add(slide.title)
+            from app.services.synthesizer import sanitize_and_normalize_deck
+            normalized_result = sanitize_and_normalize_deck(
+                result=parsed_result,
+                source_type=source_type,
+                title_hint=title_hint,
+                slide_count=slide_count
+            )
 
             ai_circuit_breaker.record_success("groq")
             logger.info(f"[Groq Service] Presentation generation succeeded with model '{model_name}'.")
-            return parsed_result
+            return normalized_result
 
         except Exception as e:
             ai_circuit_breaker.record_failure("groq", e)

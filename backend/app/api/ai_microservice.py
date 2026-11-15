@@ -60,6 +60,7 @@ class GenerateDeckRequest(BaseModel):
     source_type: str = "prompt"
     source_content: Optional[str] = None
     prompt: Optional[str] = None
+    custom_prompt: Optional[str] = None
     title_hint: Optional[str] = None
     source_name: Optional[str] = None
     slide_count: int = 6
@@ -118,6 +119,7 @@ def generate_presentation(req: GenerateDeckRequest):
     return generate_presentation_deck_ai(
         source_type=req.source_type,
         source_content=content,
+        custom_prompt=req.custom_prompt,
         title_hint=req.title_hint or req.source_name,
         slide_count=req.slide_count,
         language=req.language,

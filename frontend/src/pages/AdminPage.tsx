@@ -58,7 +58,13 @@ type AdminTab =
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const { user, loading: authLoading } = useAuth();
-  const isAdmin = Boolean(user && (user.role === "admin" || (user as any).is_admin || (user as any).isAdmin));
+  const isAdmin = Boolean(
+    user && (
+      String(user.role || "").toLowerCase().trim() === "admin" ||
+      Boolean((user as any).is_admin) ||
+      Boolean((user as any).isAdmin)
+    )
+  );
 
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [, setLoading] = useState(true);

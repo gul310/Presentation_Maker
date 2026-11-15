@@ -368,7 +368,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Super Admin Panel (if admin) or Practice Mode shortcut */}
-        {(user?.role === 'admin' || (user as any)?.is_admin) ? (
+        {(String(user?.role || "").toLowerCase().trim() === "admin" || Boolean((user as any)?.is_admin)) ? (
           <div 
             onClick={() => onNavigate('/admin')}
             className="rounded-3xl p-6 border border-amber-500/40 bg-gradient-to-br from-[#2D2320] to-[#3E322D] text-white hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1"

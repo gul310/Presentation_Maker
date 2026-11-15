@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { Types } from "mongoose";
 import { config } from "../config/config.js";
 import { User, IUser } from "../models/User.js";
 
@@ -32,13 +33,34 @@ export const authenticate = async (
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.split(" ")[1];
     try {
-      const decoded = jwt.verify(token, config.jwtSecret) as { sub: string; email?: string; role?: string; is_admin?: boolean };
+      const decoded = jwt.verify(token, config.jwtSecret) as {
+        sub: string;
+        email?: string;
+        role?: string;
+        is_admin?: boolean;
+      };
+
       if (decoded && decoded.sub) {
-        const user = await User.findById(decoded.sub);
+        let user: IUser | null = null;
+        if (Types.ObjectId.isValid(decoded.sub)) {
+          user = await User.findById(decoded.sub);
+        }
+        if (!user && decoded.email) {
+          user = await User.findOne({ email: decoded.email.toLowerCase().trim() });
+        }
+
+        // Strict account isolation: Verify that user is active and matches token claims
         if (user && user.is_active) {
-          req.auth.user = user;
-          req.auth.userId = user._id.toString();
-          req.auth.isGuest = false;
+          if (decoded.email && user.email.toLowerCase().trim() !== decoded.email.toLowerCase().trim()) {
+            // Identity mismatch detected — reject session to avoid account bleed
+            req.auth.user = null;
+            req.auth.userId = null;
+            req.auth.isGuest = true;
+          } else {
+            req.auth.user = user;
+            req.auth.userId = user._id.toString();
+            req.auth.isGuest = false;
+          }
         }
       }
     } catch (err) {
@@ -74,7 +96,10 @@ export const requireAdmin = (
     return;
   }
   const user = req.auth.user as any;
-  const isAdmin = user.role === "admin" || user.is_admin === true;
+  const roleStr = String(user.role || "").toLowerCase().trim();
+  const isRoleAdmin = roleStr === "admin";
+  const isFlagAdmin = Boolean(user.is_admin);
+  const isAdmin = isRoleAdmin || isFlagAdmin;
   if (!isAdmin) {
     res.status(403).json({ detail: "Administrator access required. Access denied." });
     return;

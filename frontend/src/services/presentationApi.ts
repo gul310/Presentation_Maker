@@ -64,6 +64,7 @@ export const generatePresentation = async (
     ...input,
     prompt: content,
     source_content: content,
+    custom_prompt: input.custom_prompt,
     title_hint: titleHint,
     source_name: input.source_name || titleHint,
   };

@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { Sparkles, FileText, Upload, FileCheck, Loader2, ArrowRight, MessageSquare, ShieldAlert } from 'lucide-react';
+import {
+  Sparkles,
+  FileText,
+  Upload,
+  FileCheck,
+  Loader2,
+  ArrowRight,
+  MessageSquare,
+  ShieldAlert,
+  Trash2,
+  RefreshCw,
+  CheckCircle2
+} from 'lucide-react';
 
 import { uploadDocumentSource, generatePresentation } from '../services/presentationApi';
 import type { DocumentContentResponse } from '../types/presentation';
@@ -25,7 +37,14 @@ export function CreatePage({ onNavigate }: CreatePageProps) {
   // Document Upload State
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'extracted' | 'error'>('idle');
   const [extractedData, setExtractedData] = useState<DocumentContentResponse | null>(null);
+  const [docFile, setDocFile] = useState<File | null>(null);
   const [docTitle, setDocTitle] = useState('');
+  const [docCustomPrompt, setDocCustomPrompt] = useState('');
+  const [docSlideCount, setDocSlideCount] = useState<number>(6);
+  const [docLanguage, setDocLanguage] = useState('English');
+  const [docAudience, setDocAudience] = useState('General Professional');
+  const [docPresentationType, setDocPresentationType] = useState('Informative');
+  const [docTone, setDocTone] = useState('Professional');
   
   // Generation & Status State
   const [loading, setLoading] = useState(false);
@@ -34,24 +53,59 @@ export function CreatePage({ onNavigate }: CreatePageProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
 
+  const cleanFilenameToTitle = (filename: string): string => {
+    let name = filename.replace(/\.[^/.]+$/, '').trim();
+    // Strip technical tags and suffixes
+    name = name.replace(/[-_](?:source|presentation|slides?|draft|final|v\d+|mvp|doc|report|version\d*)\b/gi, '');
+    name = name.replace(/\b(?:source|presentation|slides?|draft|final|v\d+|mvp|doc|report|version\d*)[-_]/gi, '');
+    name = name.replace(/[-_]+/g, ' ').trim();
+    if (!name.includes(' ') && name.length > 6) {
+      name = name.replace(/([a-z])([A-Z])/g, '$1 $2');
+    }
+    const words = name.split(/\s+/);
+    const minor = new Set(['in', 'on', 'of', 'and', 'the', 'for', 'with', 'at', 'to', 'by', 'a', 'an']);
+    return words.map((w, i) => (i === 0 || !minor.has(w.toLowerCase())) ? (w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : w.toLowerCase()).join(' ') || 'Document Presentation';
+  };
+
   const handleFileChange = (selectedFile: File | null) => {
     if (!selectedFile) return;
-    setDocTitle(selectedFile.name.replace(/\.[^/.]+$/, ''));
+    setDocFile(selectedFile);
+    setDocTitle(cleanFilenameToTitle(selectedFile.name));
     setErrorMsg(null);
     handleDocumentUpload(selectedFile);
   };
 
   const handleDocumentUpload = async (selectedFile: File) => {
     setUploadState('uploading');
+    setProgressMessage('Uploading document and extracting content...');
     setErrorMsg(null);
     try {
       const result = await uploadDocumentSource(selectedFile);
       setExtractedData(result);
+      setDocFile(selectedFile);
+      // Auto-populate detected intelligent title if available from document content
+      if (result.detected_title && result.detected_title.trim().length >= 3) {
+        setDocTitle(result.detected_title.trim());
+      } else {
+        setDocTitle(cleanFilenameToTitle(selectedFile.name));
+      }
+      if (result.page_or_slide_count && result.page_or_slide_count >= 3 && result.page_or_slide_count <= 30) {
+        setDocSlideCount(result.page_or_slide_count);
+      }
       setUploadState('extracted');
     } catch (err: any) {
       setUploadState('error');
       setErrorMsg(err.message || 'Failed to extract text from document.');
     }
+  };
+
+  const handleRemoveDocument = () => {
+    setExtractedData(null);
+    setDocFile(null);
+    setDocTitle('');
+    setDocCustomPrompt('');
+    setUploadState('idle');
+    setErrorMsg(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -137,26 +191,30 @@ export function CreatePage({ onNavigate }: CreatePageProps) {
 
     setLoading(true);
     setGenerationStage('preparing');
-    setProgressMessage('Preparing your presentation...');
+    setProgressMessage(docCustomPrompt.trim()
+      ? 'Analyzing document with your custom focus instructions...'
+      : 'Understanding document and planning presentation outline...');
     setErrorMsg(null);
 
     try {
       const docContent = extractedData.sections && extractedData.sections.length > 0
         ? extractedData.sections.map(s => `[${s.title}]\n${s.content}`).join('\n\n')
         : extractedData.extracted_text_preview;
-      const promptContent = docContent.length > 15000 ? docContent.substring(0, 15000) + '...' : docContent;
+      const promptContent = docContent.length > 20000 ? docContent.substring(0, 20000) + '...' : docContent;
 
       const presentation = await generatePresentation(
         {
           source_type: 'document',
           prompt: promptContent,
           source_content: promptContent,
-          source_name: docTitle.trim() || extractedData.filename,
-          language,
-          audience,
-          presentation_type: presentationType,
-          tone,
-          slide_count: Math.min(30, Math.max(3, extractedData.page_or_slide_count || slideCount)),
+          custom_prompt: docCustomPrompt.trim() || undefined,
+          source_name: docTitle.trim() || extractedData.detected_title || cleanFilenameToTitle(extractedData.filename),
+          title_hint: docTitle.trim() || extractedData.detected_title || cleanFilenameToTitle(extractedData.filename),
+          language: docLanguage,
+          audience: docAudience,
+          presentation_type: docPresentationType,
+          tone: docTone,
+          slide_count: docSlideCount,
         },
         (stage, message) => {
           setGenerationStage(stage as any);
@@ -165,7 +223,7 @@ export function CreatePage({ onNavigate }: CreatePageProps) {
       );
 
       setGenerationStage('saving');
-      setProgressMessage('Finalizing your presentation...');
+      setProgressMessage('Preparing editable slides in Presentation Studio...');
       onNavigate(`/presentation/${presentation.id}`);
     } catch (err: any) {
       setGenerationStage('idle');
@@ -408,58 +466,106 @@ export function CreatePage({ onNavigate }: CreatePageProps) {
       {activeTab === 'document' && (
         <form onSubmit={handleGenerateFromDocument} className="rounded-3xl p-6 md:p-8 border border-[#D0AE92]/40 dark:border-[#8C7D70]/40 bg-[#FFFFFF]/90 dark:bg-[#3E3731] backdrop-blur-md shadow-xl dark:shadow-2xl space-y-6">
           <div>
-            <label className="block text-sm font-bold text-[#4A3A34] dark:text-[#FFFFFF] mb-2">
-              Upload Source Document (PDF, DOCX, PPTX)
+            <label className="block text-sm font-bold text-[#4A3A34] dark:text-[#FFFFFF] mb-2 flex items-center justify-between">
+              <span>Upload Source Document (PDF, DOCX, PPTX)</span>
+              <span className="text-xs font-normal text-[#77574A] dark:text-[#E0D5CC]">Treated as factual information source</span>
             </label>
 
-            <div
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              className="border-2 border-dashed border-[#D0AE92]/60 dark:border-[#8C7D70]/40 hover:border-[var(--color-primary)] rounded-2xl p-8 text-center transition-all bg-[#F9F2E4]/40 dark:bg-[#2A2521]/60 cursor-pointer"
-              onClick={() => document.getElementById('file-upload-input')?.click()}
-            >
-              <input
-                id="file-upload-input"
-                type="file"
-                accept=".pdf,.docx,.pptx"
-                className="hidden"
-                onChange={(e) => e.target.files && handleFileChange(e.target.files[0])}
-              />
-              {uploadState === 'uploading' ? (
-                <div className="flex flex-col items-center justify-center py-4">
-                  <Loader2 className="w-10 h-10 text-[var(--color-primary)] animate-spin mb-3" />
-                  <p className="text-sm font-bold text-[#4A3A34] dark:text-[#FFFFFF]">Extracting text from document...</p>
-                  <p className="text-xs text-[#77574A] dark:text-[#F5EEE8] mt-1">Preserving page and section structure</p>
-                </div>
-              ) : uploadState === 'extracted' && extractedData ? (
-                <div className="flex flex-col items-center justify-center py-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center mb-3">
+            {/* Hidden file input */}
+            <input
+              id="file-upload-input"
+              type="file"
+              accept=".pdf,.docx,.pptx"
+              className="hidden"
+              onChange={(e) => e.target.files && handleFileChange(e.target.files[0])}
+            />
+
+            {/* Dropzone / Upload state */}
+            {uploadState === 'extracted' && extractedData ? (
+              <div className="p-5 rounded-2xl border border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-sm">
                     <FileCheck className="w-6 h-6" />
                   </div>
-                  <p className="text-sm font-bold text-[#4A3A34] dark:text-[#FFFFFF]">{extractedData.filename}</p>
-                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
-                    Successfully extracted {extractedData.word_count.toLocaleString()} words across {extractedData.page_or_slide_count} pages/slides
-                  </p>
-                  <span className="mt-3 text-xs text-[#77574A] dark:text-[#FFFFFF] underline hover:text-[#4A3A34] dark:hover:text-[#FFFFFF]">
-                    Click to replace document
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-4">
-                  <div className="w-12 h-12 rounded-full bg-[#EBD7BE]/50 dark:bg-[#4D443D] text-[var(--color-primary)] flex items-center justify-center mb-3">
-                    <Upload className="w-6 h-6" />
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                        {extractedData.filename.split('.').pop()?.toUpperCase() || 'DOC'}
+                      </span>
+                      <h4 className="font-bold text-sm text-[#4A3A34] dark:text-[#FFFFFF] break-all">
+                        {extractedData.filename}
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-[#77574A] dark:text-[#D5C7BC] flex-wrap">
+                      <span>
+                        Size: <strong className="text-[#4A3A34] dark:text-white">
+                          {docFile ? (docFile.size < 1024 * 1024 ? `${(docFile.size / 1024).toFixed(1)} KB` : `${(docFile.size / (1024 * 1024)).toFixed(2)} MB`) : `${(extractedData.file_size_bytes / 1024).toFixed(1)} KB`}
+                        </strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Words: <strong className="text-[#4A3A34] dark:text-white">{extractedData.word_count.toLocaleString()}</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Sections: <strong className="text-[#4A3A34] dark:text-white">{extractedData.page_or_slide_count}</strong>
+                      </span>
+                      <span>•</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Clean text extracted
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-sm font-bold text-[#4A3A34] dark:text-[#FFFFFF]">
-                    Drag & drop document here, or <span className="text-[var(--color-primary)] underline">browse</span>
-                  </p>
-                  <p className="text-xs text-[#77574A] dark:text-[#F5EEE8] mt-1">Supported formats: PDF, DOCX, PPTX (up to 20MB)</p>
                 </div>
-              )}
-            </div>
+
+                <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('file-upload-input')?.click()}
+                    className="px-3 py-1.5 rounded-xl border border-[#D0AE92]/50 hover:bg-[#EBD7BE]/40 text-xs font-semibold text-[#5B4136] dark:text-[#F5EEE8] transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveDocument}
+                    className="px-3 py-1.5 rounded-xl border border-rose-500/30 hover:bg-rose-500/10 text-xs font-semibold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                className="border-2 border-dashed border-[#D0AE92]/60 dark:border-[#8C7D70]/40 hover:border-[var(--color-primary)] rounded-2xl p-8 text-center transition-all bg-[#F9F2E4]/40 dark:bg-[#2A2521]/60 cursor-pointer group"
+                onClick={() => document.getElementById('file-upload-input')?.click()}
+              >
+                {uploadState === 'uploading' ? (
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <Loader2 className="w-10 h-10 text-[var(--color-primary)] animate-spin mb-3" />
+                    <p className="text-sm font-bold text-[#4A3A34] dark:text-[#FFFFFF]">Extracting text and cleaning document structure...</p>
+                    <p className="text-xs text-[#77574A] dark:text-[#F5EEE8] mt-1">Stripping headers, footers and page artifacts</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <div className="w-12 h-12 rounded-full bg-[#EBD7BE]/50 dark:bg-[#4D443D] text-[var(--color-primary)] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-[#4A3A34] dark:text-[#FFFFFF]">
+                      Drag & drop your document here, or <span className="text-[var(--color-primary)] underline">browse files</span>
+                    </p>
+                    <p className="text-xs text-[#77574A] dark:text-[#F5EEE8] mt-1">Supported formats: PDF, Word (DOCX), PowerPoint (PPTX) up to 20MB</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {extractedData && (
             <>
+              {/* Presentation Title */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-[#77574A] dark:text-[#FFFFFF] mb-2">
                   Presentation Title
@@ -469,29 +575,72 @@ export function CreatePage({ onNavigate }: CreatePageProps) {
                   required
                   value={docTitle}
                   onChange={(e) => setDocTitle(e.target.value)}
-                  className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-4 py-2.5 text-sm text-[#4A3A34] dark:text-[#FFFFFF] focus:outline-none focus:border-[var(--color-primary)]"
+                  placeholder="e.g. Capstone Project: Autonomous Agent Architecture"
+                  className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-4 py-2.5 text-sm text-[#4A3A34] dark:text-[#FFFFFF] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
                 />
               </div>
 
-              {/* Text Extraction Preview */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#77574A] dark:text-[#FFFFFF] mb-2">
-                  Grounded Source Content ({extractedData.character_count.toLocaleString()} chars)
-                </label>
-                <div className="bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl p-4 text-xs font-mono text-[#4A3A34] dark:text-[#FFFFFF] max-h-36 overflow-y-auto leading-relaxed">
-                  {extractedData.extracted_text_preview}
+              {/* Optional Custom Instructions / Focus Areas */}
+              <div className="p-5 rounded-2xl border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 dark:bg-[#2A2521]/70 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#4A3A34] dark:text-[#FFFFFF] flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
+                    Additional Instructions / Focus Areas (Optional)
+                  </label>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
+                    Custom Prompt
+                  </span>
                 </div>
+                <p className="text-xs text-[#77574A] dark:text-[#D5C7BC] leading-relaxed">
+                  Tell AI how you want your presentation to be created from this document (e.g. &ldquo;Focus on chapter 3&rdquo;, &ldquo;Create an executive summary for investors&rdquo;, &ldquo;Explain the methodology section in detail&rdquo;, &ldquo;Make it suitable for high school students&rdquo;). Leave blank for a comprehensive overview.
+                </p>
+                <textarea
+                  rows={4}
+                  value={docCustomPrompt}
+                  onChange={(e) => setDocCustomPrompt(e.target.value)}
+                  placeholder="e.g. Create a professional MVP Capstone presentation from this document. Focus on the problem statement, proposed solution, target audience, project objectives, MVP features, architecture, technology stack and future scope. Extract relevant information and summarize it into clear, presentation-ready slides. Do not copy the entire document."
+                  className="w-full bg-[#FFFFFF] dark:bg-[#1E1916] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl p-3.5 text-xs text-[#4A3A34] dark:text-[#FFFFFF] placeholder-[#77574A]/50 dark:placeholder-[#A8988C] focus:outline-none focus:border-[var(--color-primary)] transition-all leading-relaxed"
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Presentation Customization Options */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Number of Slides */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#77574A] dark:text-[#FFFFFF]">
+                      Target Slides
+                    </label>
+                    <span className="text-xs font-extrabold text-[var(--color-primary)]">
+                      {docSlideCount} Slides
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="3"
+                    max="30"
+                    step="1"
+                    value={docSlideCount}
+                    onChange={(e) => setDocSlideCount(parseInt(e.target.value, 10))}
+                    className="w-full accent-[var(--color-primary)] cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-[#77574A] dark:text-[#A8988C] mt-1">
+                    <span>3 slides</span>
+                    <span>10</span>
+                    <span>20</span>
+                    <span>30 slides</span>
+                  </div>
+                </div>
+
+                {/* Presentation Language */}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#77574A] dark:text-[#FFFFFF] mb-2">
                     Presentation Language
                   </label>
                   <select
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
-                    className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-4 py-2.5 text-sm text-[#4A3A34] dark:text-[#FFFFFF] font-medium focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+                    value={docLanguage}
+                    onChange={(e) => setDocLanguage(e.target.value)}
+                    className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-3 py-2 text-xs text-[#4A3A34] dark:text-[#FFFFFF] font-medium focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
                   >
                     {SUPPORTED_LANGUAGES.map((lang) => (
                       <option key={lang.code} value={lang.name} className="bg-[#F9F2E4] dark:bg-[#3E3731]">
@@ -501,65 +650,152 @@ export function CreatePage({ onNavigate }: CreatePageProps) {
                   </select>
                 </div>
 
+                {/* Target Audience */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#77574A] dark:text-[#FFFFFF] mb-2">
+                    Target Audience
+                  </label>
+                  <select
+                    value={docAudience}
+                    onChange={(e) => setDocAudience(e.target.value)}
+                    className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-3 py-2 text-xs text-[#4A3A34] dark:text-[#FFFFFF] font-medium focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+                  >
+                    <option value="General Professional" className="bg-[#F9F2E4] dark:bg-[#3E3731]">General Professional</option>
+                    <option value="Students & Academic" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Students & Academic</option>
+                    <option value="Executives & Investors" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Executives & Investors</option>
+                    <option value="Developers & Technical" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Developers & Technical</option>
+                    <option value="Beginners & High School" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Beginners & High School</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Presentation Type */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#77574A] dark:text-[#FFFFFF] mb-2">
+                    Presentation Type
+                  </label>
+                  <select
+                    value={docPresentationType}
+                    onChange={(e) => setDocPresentationType(e.target.value)}
+                    className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-3 py-2 text-xs text-[#4A3A34] dark:text-[#FFFFFF] font-medium focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+                  >
+                    <option value="Informative" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Informative / Overview</option>
+                    <option value="Pitch Deck" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Pitch Deck (Problem, Solution, MVP)</option>
+                    <option value="Educational" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Educational / Lecture</option>
+                    <option value="Technical & Architecture" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Technical Architecture & Engineering</option>
+                    <option value="Executive Briefing" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Executive Briefing & Strategy</option>
+                  </select>
+                </div>
+
+                {/* Tone & Style */}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#77574A] dark:text-[#FFFFFF] mb-2">
                     Tone & Style
                   </label>
                   <select
-                    value={tone}
-                    onChange={(e) => setTone(e.target.value)}
-                    className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-4 py-2.5 text-sm text-[#4A3A34] dark:text-[#FFFFFF] font-medium focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+                    value={docTone}
+                    onChange={(e) => setDocTone(e.target.value)}
+                    className="w-full bg-[#F9F2E4]/80 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 rounded-xl px-3 py-2 text-xs text-[#4A3A34] dark:text-[#FFFFFF] font-medium focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
                   >
-                    <option value="Professional" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Professional</option>
-                    <option value="Academic" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Academic</option>
-                    <option value="Persuasive" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Persuasive</option>
-                    <option value="Casual" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Casual</option>
+                    <option value="Professional" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Professional & Polished</option>
+                    <option value="Academic" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Academic & Rigorous</option>
+                    <option value="Persuasive" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Persuasive & Compelling</option>
+                    <option value="Inspirational" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Inspirational & Visionary</option>
+                    <option value="Conversational" className="bg-[#F9F2E4] dark:bg-[#3E3731]">Conversational & Accessible</option>
                   </select>
                 </div>
               </div>
+
+              {/* Text Extraction Preview Collapsible */}
+              <details className="rounded-xl border border-[#D0AE92]/40 dark:border-[#8C7D70]/30 bg-[#F9F2E4]/50 dark:bg-[#2A2521]/40 p-3 text-xs">
+                <summary className="font-bold cursor-pointer text-[#5B4136] dark:text-[#E0D5CC] select-none flex items-center justify-between">
+                  <span>View Extracted Source Preview ({extractedData.character_count.toLocaleString()} characters)</span>
+                  <span className="text-[10px] text-[#77574A] dark:text-[#A8988C] font-normal">Click to toggle</span>
+                </summary>
+                <div className="mt-3 p-3 rounded-lg bg-[#FFFFFF] dark:bg-[#1E1916] border border-[#D0AE92]/30 dark:border-[#8C7D70]/20 font-mono text-[11px] text-[#4A3A34] dark:text-[#D5C7BC] max-h-40 overflow-y-auto leading-relaxed">
+                  {extractedData.extracted_text_preview}
+                </div>
+              </details>
             </>
           )}
 
-          {/* Real Backend Job Generation Stage Progress Indicator */}
+          {/* Real Backend Job Progressive Stage Indicator */}
           {loading && (
-            <div className="p-4 rounded-2xl bg-[#EBD7BE]/30 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 text-xs text-[#4A3A34] dark:text-[#FFFFFF] flex items-center justify-between shadow-sm animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <Loader2 className="w-5 h-5 animate-spin text-[var(--color-primary)] flex-shrink-0" />
-                <div>
-                  <span className="font-bold block text-sm text-[#2D2320] dark:text-[#FFFFFF]">
-                    {progressMessage}
-                  </span>
-                  <span className="text-[11px] text-[#77574A] dark:text-[#C5B7A9]">
-                    {generationStage === 'preparing' && 'Parsing document & structuring outline...'}
-                    {generationStage === 'generating' && 'Authoring structured slides with grounded facts...'}
-                    {generationStage === 'layouts' && 'Formatting visual layouts, steps & tables...'}
-                    {generationStage === 'saving' && 'Saving presentation to MongoDB Atlas workspace...'}
-                    {generationStage === 'idle' && 'Initializing presentation pipeline...'}
-                  </span>
+            <div className="p-4 rounded-2xl bg-[#EBD7BE]/30 dark:bg-[#2A2521] border border-[#D0AE92]/50 dark:border-[#8C7D70]/40 text-xs text-[#4A3A34] dark:text-[#FFFFFF] space-y-3 shadow-sm animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-[var(--color-primary)] flex-shrink-0" />
+                  <div>
+                    <span className="font-bold block text-sm text-[#2D2320] dark:text-[#FFFFFF]">
+                      {progressMessage}
+                    </span>
+                    <span className="text-[11px] text-[#77574A] dark:text-[#C5B7A9]">
+                      {generationStage === 'preparing' && 'Understanding document content & planning slide outline...'}
+                      {generationStage === 'generating' && `Synthesizing ${docSlideCount} slides with speaker notes in ${docLanguage}...`}
+                      {generationStage === 'layouts' && 'Selecting visual layouts, cards, milestones & metrics...'}
+                      {generationStage === 'saving' && 'Preparing editable presentation in Presentation Studio...'}
+                      {generationStage === 'idle' && 'Initializing presentation pipeline...'}
+                    </span>
+                  </div>
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Active Synthesis</span>
                 </div>
               </div>
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Active Job</span>
+
+              {/* Progressive Stage Stepper */}
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 pt-1 text-[10px] text-center font-semibold">
+                <div className={`p-1.5 rounded-lg border ${uploadState === 'extracted' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-transparent text-[#77574A]'}`}>
+                  1. Uploaded
+                </div>
+                <div className={`p-1.5 rounded-lg border ${extractedData ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-transparent text-[#77574A]'}`}>
+                  2. Extracted
+                </div>
+                <div className={`p-1.5 rounded-lg border ${generationStage === 'preparing' || generationStage === 'generating' || generationStage === 'layouts' || generationStage === 'saving' ? 'bg-[var(--color-primary)]/15 border-[var(--color-primary)]/30 text-[var(--color-primary)]' : 'bg-black/5 dark:bg-white/5 border-transparent text-[#77574A]'}`}>
+                  3. Understanding
+                </div>
+                <div className={`p-1.5 rounded-lg border ${generationStage === 'generating' || generationStage === 'layouts' || generationStage === 'saving' ? 'bg-[var(--color-primary)]/15 border-[var(--color-primary)]/30 text-[var(--color-primary)]' : 'bg-black/5 dark:bg-white/5 border-transparent text-[#77574A]'}`}>
+                  4. Planning
+                </div>
+                <div className={`p-1.5 rounded-lg border ${generationStage === 'layouts' || generationStage === 'saving' ? 'bg-[var(--color-primary)]/15 border-[var(--color-primary)]/30 text-[var(--color-primary)]' : 'bg-black/5 dark:bg-white/5 border-transparent text-[#77574A]'}`}>
+                  5. Generating
+                </div>
+                <div className={`p-1.5 rounded-lg border ${generationStage === 'saving' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'bg-black/5 dark:bg-white/5 border-transparent text-[#77574A]'}`}>
+                  6. Studio Ready
+                </div>
               </div>
             </div>
           )}
 
-          <div className="pt-4 flex justify-end">
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#D0AE92]/30 dark:border-[#8C7D70]/30">
+            <p className="text-xs text-[#77574A] dark:text-[#A8988C]">
+              {extractedData ? (
+                docCustomPrompt.trim() ? (
+                  <span>AI will synthesize document using your <strong className="text-[#4A3A34] dark:text-white">custom focus instructions</strong></span>
+                ) : (
+                  <span>AI will synthesize document into <strong className="text-[#4A3A34] dark:text-white">{docSlideCount} structured slides</strong></span>
+                )
+              ) : (
+                <span>Upload a document to unlock presentation generation</span>
+              )}
+            </p>
+
             <button
               type="submit"
               disabled={loading || uploadState !== 'extracted'}
-              className="py-3 px-8 rounded-xl font-bold text-sm text-[#FFFFFF] dark:text-[#FFFFFF] shadow-lg hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50 shiny-button cursor-pointer"
+              className="w-full sm:w-auto py-3 px-8 rounded-xl font-bold text-sm text-[#FFFFFF] dark:text-[#FFFFFF] shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 shiny-button cursor-pointer"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating Deck from Document...
+                  Generating Presentation from Document...
                 </>
               ) : (
                 <>
-                  Generate AI Presentation Deck
+                  Generate Presentation from Document
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

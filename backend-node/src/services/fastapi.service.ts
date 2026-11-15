@@ -42,6 +42,7 @@ export const fastApiService = {
     source_type: string;
     source_content: string;
     prompt?: string;
+    custom_prompt?: string;
     title_hint?: string;
     source_name?: string;
     slide_count?: number;

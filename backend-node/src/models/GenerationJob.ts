@@ -4,6 +4,7 @@ export interface IGenerationJob extends Document {
   user_id?: Types.ObjectId | null;
   guest_session_id?: string | null;
   prompt: string;
+  custom_prompt?: string | null;
   source_type: string;
   source_name?: string | null;
   slide_count: number;
@@ -26,6 +27,7 @@ const GenerationJobSchema = new Schema<IGenerationJob>(
     user_id: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
     guest_session_id: { type: String, default: null, index: true },
     prompt: { type: String, required: true },
+    custom_prompt: { type: String, default: null },
     source_type: { type: String, default: "prompt" },
     source_name: { type: String, default: null },
     slide_count: { type: Number, default: 6 },

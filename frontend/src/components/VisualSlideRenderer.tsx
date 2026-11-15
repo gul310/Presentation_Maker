@@ -223,17 +223,41 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
     borderRadius: border_radius,
   };
 
+  // Helper to safely format badge/title text and remove file extensions or underscore clutter
+  const formatBadgeTitle = (raw?: string) => {
+    if (!raw) return '';
+    return raw.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
+  };
+
+  const getTitleFontSize = (text: string, hasImage: boolean) => {
+    const len = text ? text.length : 0;
+    if (hasImage) {
+      if (len > 50) return 'text-xl sm:text-2xl md:text-2xl lg:text-3xl';
+      if (len > 30) return 'text-2xl sm:text-2xl md:text-3xl lg:text-3xl';
+      return 'text-2xl sm:text-3xl md:text-3xl lg:text-4xl';
+    }
+    if (len > 50) return 'text-2xl sm:text-3xl md:text-3xl lg:text-4xl';
+    if (len > 30) return 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl';
+    return 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl';
+  };
+
   const renderLayout = () => {
     // 1. TITLE / HERO OPENING SLIDE
     if (visualType === 'title') {
+      const cleanPresTitle = formatBadgeTitle(presentationTitle);
+      const cleanSlideTitle = formatBadgeTitle(slide.title);
+      const isRedundantBadge = !cleanPresTitle ||
+        cleanPresTitle.toLowerCase() === cleanSlideTitle.toLowerCase() ||
+        cleanSlideTitle.toLowerCase().startsWith(cleanPresTitle.toLowerCase());
+
       if (imageUrl && !imageError) {
         return (
-          <div className="flex-1 flex flex-col justify-between h-full animate-fadeIn overflow-hidden p-4 sm:p-6 my-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center my-auto">
-              <div className="space-y-4">
-                {presentationTitle && (
+          <div className="flex-1 flex flex-col justify-center h-full animate-fadeIn overflow-hidden p-3 sm:p-5 my-auto">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-center my-auto w-full">
+              <div className="md:col-span-7 min-w-0 space-y-3.5 pr-2">
+                {!isRedundantBadge && (
                   <span
-                    className="text-[11px] uppercase tracking-widest font-bold px-3.5 py-1 rounded-full shadow-sm inline-block"
+                    className="text-[11px] uppercase tracking-widest font-bold px-3.5 py-1 rounded-full shadow-sm inline-block max-w-full truncate"
                     style={{
                       backgroundColor: `${palette.primary}18`,
                       borderColor: `${palette.primary}40`,
@@ -241,48 +265,50 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
                       color: palette.primary,
                     }}
                   >
-                    {presentationTitle}
+                    {cleanPresTitle}
                   </span>
                 )}
                 <h1
-                  className="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-tight tracking-tight"
+                  className={`${getTitleFontSize(slide.title, true)} font-extrabold leading-tight tracking-tight break-words [overflow-wrap:anywhere]`}
                   style={{ fontFamily: font_pairing.heading, color: palette.text }}
                 >
                   {slide.title}
                 </h1>
                 {content.subtitle && (
                   <p
-                    className="text-xs sm:text-sm font-medium leading-relaxed"
+                    className="text-xs sm:text-sm font-medium leading-relaxed break-words [overflow-wrap:anywhere] line-clamp-3"
                     style={{ fontFamily: font_pairing.body, color: palette.text_muted }}
                   >
                     {content.subtitle}
                   </p>
                 )}
                 <div className="pt-2 flex items-center gap-3">
-                  <span className="h-0.5 w-10 rounded-full" style={{ backgroundColor: `${palette.primary}60` }} />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: palette.text_muted }}>
+                  <span className="h-0.5 w-10 rounded-full shrink-0" style={{ backgroundColor: `${palette.primary}60` }} />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider truncate" style={{ color: palette.text_muted }}>
                     {slide.source_reference || 'Executive Presentation'}
                   </span>
                 </div>
               </div>
 
               {/* Hero Image Card */}
-              <SlideImageCard
-                imageUrl={imageUrl}
-                slideImage={slideImage}
-                title={slide.title}
-                onReplace={onReplaceImage}
-                onRemove={onRemoveImage}
-                cardStyle={cardStyle}
-                heightClass="h-52 sm:h-60 md:h-72"
-              />
+              <div className="md:col-span-5 min-w-0 w-full flex items-center justify-center">
+                <SlideImageCard
+                  imageUrl={imageUrl}
+                  slideImage={slideImage}
+                  title={slide.title}
+                  onReplace={onReplaceImage}
+                  onRemove={onRemoveImage}
+                  cardStyle={cardStyle}
+                  heightClass="h-48 sm:h-56 md:h-64 lg:h-72 w-full max-h-[280px]"
+                />
+              </div>
             </div>
           </div>
         );
       }
 
       return (
-        <div className="flex-1 flex flex-col justify-center items-center text-center px-6 py-4 space-y-4 animate-fadeIn my-auto relative">
+        <div className="flex-1 flex flex-col justify-center items-center text-center px-6 py-4 space-y-4 animate-fadeIn my-auto relative max-w-4xl mx-auto w-full">
           {/* Subtle Background Radial Glow */}
           <div
             className="absolute inset-0 pointer-events-none rounded-3xl opacity-30"
@@ -291,9 +317,9 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
             }}
           />
 
-          {presentationTitle && (
+          {!isRedundantBadge && (
             <span
-              className="text-[11px] uppercase tracking-widest font-bold px-3.5 py-1 rounded-full shadow-sm"
+              className="text-[11px] uppercase tracking-widest font-bold px-3.5 py-1 rounded-full shadow-sm max-w-md truncate"
               style={{
                 backgroundColor: `${palette.primary}18`,
                 borderColor: `${palette.primary}40`,
@@ -301,12 +327,12 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
                 color: palette.primary,
               }}
             >
-              {presentationTitle}
+              {cleanPresTitle}
             </span>
           )}
 
           <h1
-            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight max-w-3xl tracking-tight"
+            className={`${getTitleFontSize(slide.title, false)} font-extrabold leading-tight tracking-tight break-words [overflow-wrap:anywhere] max-w-3xl`}
             style={{
               fontFamily: font_pairing.heading,
               color: palette.text,
@@ -317,7 +343,7 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
 
           {content.subtitle && (
             <p
-              className="text-xs sm:text-sm md:text-base font-medium max-w-2xl leading-relaxed"
+              className="text-xs sm:text-sm md:text-base font-medium max-w-2xl leading-relaxed break-words [overflow-wrap:anywhere]"
               style={{
                 fontFamily: font_pairing.body,
                 color: palette.text_muted,
@@ -327,10 +353,10 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
             </p>
           )}
 
-          <div className="pt-2 flex items-center gap-3">
+          <div className="pt-2 flex items-center justify-center gap-3">
             <span className="h-0.5 w-12 rounded-full" style={{ backgroundColor: `${palette.primary}60` }} />
             <span
-              className="text-[10px] font-semibold uppercase tracking-wider"
+              className="text-[10px] font-semibold uppercase tracking-wider truncate max-w-xs"
               style={{ color: palette.text_muted }}
             >
               {slide.source_reference || 'Executive Presentation'}
@@ -346,8 +372,8 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
       if (imageUrl && !imageError) {
         return (
           <div className="flex-1 flex flex-col justify-between h-full animate-fadeIn overflow-hidden p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center my-auto">
-              <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-center my-auto w-full">
+              <div className="md:col-span-7 min-w-0 space-y-3 pr-2">
                 <span
                   className="text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full shadow-sm inline-flex items-center gap-1.5"
                   style={{
@@ -357,29 +383,31 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
                     color: palette.primary,
                   }}
                 >
-                  <Bookmark className="w-3.5 h-3.5" /> Section Overview
+                  <Bookmark className="w-3.5 h-3.5 shrink-0" /> Section Overview
                 </span>
                 <h2
-                  className="text-2xl sm:text-3xl font-extrabold leading-tight"
+                  className="text-2xl sm:text-3xl font-extrabold leading-tight break-words [overflow-wrap:anywhere]"
                   style={{ fontFamily: font_pairing.heading, color: palette.text }}
                 >
                   {slide.title}
                 </h2>
                 {content.subtitle && (
-                  <p className="text-xs sm:text-sm leading-relaxed" style={{ fontFamily: font_pairing.body, color: palette.text_muted }}>
+                  <p className="text-xs sm:text-sm leading-relaxed break-words [overflow-wrap:anywhere] line-clamp-3" style={{ fontFamily: font_pairing.body, color: palette.text_muted }}>
                     {content.subtitle}
                   </p>
                 )}
               </div>
-              <SlideImageCard
-                imageUrl={imageUrl}
-                slideImage={slideImage}
-                title={slide.title}
-                onReplace={onReplaceImage}
-                onRemove={onRemoveImage}
-                cardStyle={cardStyle}
-                heightClass="h-48 sm:h-56 md:h-64"
-              />
+              <div className="md:col-span-5 min-w-0 w-full flex items-center justify-center">
+                <SlideImageCard
+                  imageUrl={imageUrl}
+                  slideImage={slideImage}
+                  title={slide.title}
+                  onReplace={onReplaceImage}
+                  onRemove={onRemoveImage}
+                  cardStyle={cardStyle}
+                  heightClass="h-48 sm:h-56 md:h-64 w-full max-h-[260px]"
+                />
+              </div>
             </div>
           </div>
         );
