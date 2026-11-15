@@ -27,8 +27,8 @@ Welcome to the **PresentMaker** project repository! This guide provides everythi
 ### Step 2: Clone the Project Repository
 Open PowerShell or your preferred terminal:
 ```powershell
-git clone <repository-url>
-cd PresentMaker
+git clone https://github.com/gul310/Presentation_Maker.git
+cd Presentation_Maker
 ```
 Open the folder in VS Code:
 ```powershell

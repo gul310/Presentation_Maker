@@ -12,7 +12,9 @@ To ensure high availability and continuous operation, the system employs a **res
 
 ---
 
-## 2. Key Verified Features
+## 2. Core Implemented Platform Features
+
+> **Verification Status Notice:** All features listed below have undergone complete architectural implementation and static code compilation review. Live end-to-end presentation generation and functional validation are explicitly reserved for manual testing by the project owner.
 
 - **Topic & Document Ingestion:** Generate structured decks from natural language prompts or uploaded reference documents (PDF, DOCX, PPTX).
 - **14 Contextual Visual Slide Layouts:** Automatic layout selection including Two-Column, Cards Grid, Vertical Timeline, Metrics Callout, Process Flow, Comparison Table, Table Matrix, Hierarchy Tree, Profile Card, and Standard layouts.
@@ -113,8 +115,8 @@ Before installing the project, verify that the following tools are installed:
 
 ### Step 1: Clone the Repository
 ```bash
-git clone <repository-url>
-cd PresentMaker
+git clone https://github.com/gul310/Presentation_Maker.git
+cd Presentation_Maker
 ```
 
 ### Step 2: Install Frontend Dependencies
@@ -142,7 +144,22 @@ cd ..
 
 ---
 
-## 8. Exact Run Commands (Three Terminals)
+## 8. Exact Run Commands
+
+### Option A: One-Click Startup (All Services)
+You can launch all three services simultaneously using the root startup script:
+
+- **Windows PowerShell:**
+  ```powershell
+  .\start_all_services.ps1
+  ```
+- **Linux / macOS Bash:**
+  ```bash
+  chmod +x start_all_services.sh
+  ./start_all_services.sh
+  ```
+
+### Option B: Individual Terminals (Three Terminals)
 
 Open three separate terminals in VS Code or your terminal application:
 
@@ -172,7 +189,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8002
 
 ## 9. Environment Configuration
 
-Copy the example template files into your own private `.env` files:
+Each collaborator must configure their own local private `.env` files. Private `.env` files are strictly excluded from version control by `.gitignore` and must never be committed.
+
+Copy the provided example template files into your own private `.env` files:
 
 ```powershell
 # In backend-node:
@@ -180,17 +199,24 @@ Copy-Item backend-node\.env.example backend-node\.env
 
 # In backend:
 Copy-Item backend\.env.example backend\.env
+
+# In frontend:
+Copy-Item frontend\.env.example frontend\.env
 ```
+
+*(On Linux / macOS, use `cp backend-node/.env.example backend-node/.env`, etc.)*
 
 ### Required Variables:
 - **`backend-node/.env`:**
-  - `MONGODB_URI`: Your MongoDB Atlas URI or `mongodb://127.0.0.1:27017/presentmaker`.
+  - `MONGODB_URI`: Your MongoDB Atlas URI or local `mongodb://127.0.0.1:27017/presentmaker`.
   - `JWT_SECRET`: Random 32+ character secret string.
-  - `UNSPLASH_ACCESS_KEY` & `UNSPLASH_SECRET_KEY`: (Optional) Free Unsplash keys.
+  - `UNSPLASH_ACCESS_KEY` & `UNSPLASH_SECRET_KEY`: (Optional) Free Unsplash developer keys.
 - **`backend/.env`:**
   - `GEMINI_API_KEY`: API key from [Google AI Studio](https://aistudio.google.com/).
-  - `GROQ_API_KEY`: (Optional fallback) API key from [Groq Console](https://console.groq.com/keys).
+  - `GROQ_API_KEY`: (Optional secondary fallback) API key from [Groq Console](https://console.groq.com/keys).
   - `JWT_SECRET_KEY`: Must match `JWT_SECRET` in `backend-node/.env`.
+- **`frontend/.env`:**
+  - `VITE_API_URL`: `/api` (proxied to backend gateway by Vite in dev mode).
 
 ---
 

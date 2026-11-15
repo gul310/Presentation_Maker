@@ -23,8 +23,8 @@ Ensure you have the following installed on your machine before starting:
 Open a terminal or command prompt and clone the repository:
 
 ```bash
-git clone <repository-url>
-cd PresentMaker
+git clone https://github.com/gul310/Presentation_Maker.git
+cd Presentation_Maker
 ```
 
 ---
