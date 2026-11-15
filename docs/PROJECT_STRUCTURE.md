@@ -148,3 +148,4 @@ backend/
         ├── tts_service.py          # Edge-TTS voice synthesis engine
         └── synthesizer.py          # Local deterministic content generator (safety net)
 ```
+

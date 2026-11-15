@@ -85,3 +85,4 @@ FastAPI exposes interactive OpenAPI documentation at `/docs` and JSON specificat
 | `POST` | `/ai/tts/synthesize` | `SynthesizeTTSRequest` | Streams MP3 audio synthesized from slide speaker notes |
 | `POST` | `/ai/export/{format}` | `ExportRequest` | Generates binary PPTX, PDF, PNG zip, HTML, or JSON |
 | `GET` | `/api/health` | — | Returns service status and AI provider telemetry |
+

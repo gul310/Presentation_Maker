@@ -76,3 +76,4 @@ Format: `<type>(<scope>): <subject>`
 - **Python:** Follow PEP 8 style. Use Pydantic models for request/response serialization.
 - **Zero Secret Commits:** Never hardcode credentials into source files. Always access secrets via `process.env` (Node) or `settings` (Python).
 - **Error Handling:** Always catch and log errors gracefully without exposing sensitive server internals or API keys to the client.
+

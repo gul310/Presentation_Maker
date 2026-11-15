@@ -88,3 +88,4 @@ To ensure high availability and prevent failures due to API rate limits (429) or
 - **Closed State:** Normal operation. Requests route to primary provider.
 - **Open State:** Triggered after 3 consecutive errors. Requests fail-fast directly to the secondary provider for 30 seconds.
 - **Half-Open State:** After 30 seconds, a single test request checks provider recovery.
+

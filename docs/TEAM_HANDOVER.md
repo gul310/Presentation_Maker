@@ -112,3 +112,4 @@ To stop any service, press `CTRL + C` in its respective terminal window.
 - **NEVER commit `.env` files or API keys.** The root `.gitignore` protects them, but always check `git status` before committing.
 - **Never push directly to `main`.** Create a feature branch (`git checkout -b feature/your-feature`) and open a Pull Request.
 - **Each team member uses their own database.** Do not test against production or overwrite each other's data.
+

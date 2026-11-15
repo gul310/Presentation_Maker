@@ -36,3 +36,4 @@ If you discover a security vulnerability in PresentMaker:
 2. Report the vulnerability privately to the project maintainers or team lead.
 3. Include details of the vulnerability, steps to reproduce, and impact assessment.
 4. The team will review and patch the issue promptly.
+

@@ -82,3 +82,4 @@ The circuit breaker in `app/services/ai_circuit_breaker.py` protects against cas
 - Trips to `OPEN` after 3 consecutive failures.
 - When `OPEN`, requests skip Gemini immediately without waiting for a 15–30s timeout, executing directly on Groq.
 - After 30 seconds, enters `HALF_OPEN` state to test if Gemini has recovered.
+

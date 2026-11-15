@@ -77,3 +77,4 @@ Maintains an immutable security log of administrative actions, role modification
 When the Node backend gateway starts for the first time, it connects to MongoDB via `backend-node/src/config/db.ts`. 
 
 To create an initial admin account safely without writing raw records, the application includes a seed service at `backend-node/src/services/adminSeed.ts` that will seed a default administrative profile if none exists.
+
